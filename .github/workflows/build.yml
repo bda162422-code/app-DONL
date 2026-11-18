@@ -98,6 +98,7 @@ jobs:
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
               <application
                   android:label="AI Video Tool"
                   android:supportsRtl="true"
@@ -129,6 +130,11 @@ jobs:
           import androidx.compose.ui.text.font.FontWeight
           import androidx.compose.ui.unit.*
           import androidx.compose.ui.platform.LocalClipboardManager
+          import androidx.compose.ui.platform.LocalContext
+          import android.app.DownloadManager
+          import android.content.Context
+          import android.net.Uri
+          import android.os.Environment
 
           val Background = Color(0xFF0B0D17)
           val SurfaceDark = Color(0xFF171B2B)
@@ -153,7 +159,10 @@ jobs:
               var selectedQuality by remember { mutableStateOf("1080p") }
               var analyzed by remember { mutableStateOf(false) }
 
+              var status by remember { mutableStateOf("") }
+
               val clipboard = LocalClipboardManager.current
+              val context = LocalContext.current
 
               MaterialTheme {
                   Surface(
@@ -212,6 +221,7 @@ jobs:
                                       onValueChange = {
                                           url = it
                                           analyzed = false
+                                          status = ""
                                       },
                                       modifier = Modifier.fillMaxWidth(),
                                       textStyle = androidx.compose.ui.text.TextStyle(
@@ -346,7 +356,33 @@ jobs:
 
                               Button(
                                   onClick = {
-                                      // هنا نربط محرك التنزيل لاحقاً
+                                      val uri = Uri.parse(url)
+                                      val name = uri.lastPathSegment ?: ""
+                                      val exts = listOf(
+                                          "mp4", "mkv", "webm", "mov", "avi",
+                                          "mp3", "m4a", "wav", "ogg", "aac", "flac"
+                                      )
+                                      val ext = name.substringAfterLast('.', "").lowercase()
+                                      if (ext !in exts) {
+                                          status = "الرابط مو رابط ملف مباشر. لازم ينتهي بصيغة مثل mp4 أو mp3"
+                                      } else {
+                                          try {
+                                              val req = DownloadManager.Request(uri)
+                                                  .setTitle(name)
+                                                  .setNotificationVisibility(
+                                                      DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+                                                  )
+                                                  .setDestinationInExternalPublicDir(
+                                                      Environment.DIRECTORY_DOWNLOADS,
+                                                      name
+                                                  )
+                                              val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                                              dm.enqueue(req)
+                                              status = "بدأ التنزيل، شوف إشعارات الجوال. الملف بيكون في مجلد التنزيلات"
+                                          } catch (e: Exception) {
+                                              status = "ما قدرت أبدأ التنزيل: " + (e.message ?: "")
+                                          }
+                                      }
                                   },
                                   modifier = Modifier.fillMaxWidth(),
                                   colors = ButtonDefaults.buttonColors(
@@ -358,6 +394,11 @@ jobs:
                                       "بدء المعالجة",
                                       fontSize = 17.sp
                                   )
+                              }
+
+                              if (status.isNotEmpty()) {
+                                  Spacer(Modifier.height(12.dp))
+                                  Text(status, color = Gray, fontSize = 14.sp)
                               }
                           }
 

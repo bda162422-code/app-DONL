@@ -1,0 +1,450 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: Create project files
+        run: |
+          mkdir -p app/src/main/java/com/aivideotool/app
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'AIVideoTool'
+          include ':app'
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx3g
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+          }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+          android {
+              namespace 'com.aivideotool.app'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.aivideotool.app'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+              buildFeatures {
+                  compose true
+              }
+              composeOptions {
+                  kotlinCompilerExtensionVersion '1.5.14'
+              }
+          }
+          dependencies {
+              implementation platform('androidx.compose:compose-bom:2024.06.00')
+              implementation 'androidx.core:core-ktx:1.13.1'
+              implementation 'androidx.activity:activity-compose:1.9.0'
+              implementation 'androidx.compose.ui:ui'
+              implementation 'androidx.compose.foundation:foundation'
+              implementation 'androidx.compose.material3:material3'
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="AI Video Tool"
+                  android:supportsRtl="true"
+                  android:theme="@android:style/Theme.Material.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/aivideotool/app/MainActivity.kt <<'EOF'
+          package com.aivideotool.app
+
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.*
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.foundation.text.BasicTextField
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.*
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.*
+          import androidx.compose.ui.platform.LocalClipboardManager
+
+          val Background = Color(0xFF0B0D17)
+          val SurfaceDark = Color(0xFF171B2B)
+          val Purple = Color(0xFF8055FF)
+          val White = Color.White
+          val Gray = Color(0xFF9CA3B8)
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      VideoToolApp()
+                  }
+              }
+          }
+
+          @Composable
+          fun VideoToolApp() {
+
+              var url by remember { mutableStateOf("") }
+              var selectedType by remember { mutableStateOf("فيديو") }
+              var selectedQuality by remember { mutableStateOf("1080p") }
+              var analyzed by remember { mutableStateOf(false) }
+
+              val clipboard = LocalClipboardManager.current
+
+              MaterialTheme {
+                  Surface(
+                      modifier = Modifier.fillMaxSize(),
+                      color = Background
+                  ) {
+                      Column(
+                          modifier = Modifier
+                              .fillMaxSize()
+                              .verticalScroll(rememberScrollState())
+                              .padding(20.dp)
+                      ) {
+
+                          Spacer(Modifier.height(25.dp))
+
+                          Text(
+                              "AI VIDEO TOOL",
+                              color = Purple,
+                              fontSize = 25.sp,
+                              fontWeight = FontWeight.Bold
+                          )
+
+                          Text(
+                              "أدوات الفيديو الذكية",
+                              color = White,
+                              fontSize = 18.sp
+                          )
+
+                          Spacer(Modifier.height(35.dp))
+
+                          Text(
+                              "مرحباً بك 👋",
+                              color = White,
+                              fontSize = 26.sp,
+                              fontWeight = FontWeight.Bold
+                          )
+
+                          Text(
+                              "الصق رابط الفيديو للبدء",
+                              color = Gray,
+                              fontSize = 14.sp
+                          )
+
+                          Spacer(Modifier.height(20.dp))
+
+                          Card(
+                              colors = CardDefaults.cardColors(
+                                  containerColor = SurfaceDark
+                              ),
+                              shape = RoundedCornerShape(18.dp)
+                          ) {
+                              Column(Modifier.padding(16.dp)) {
+
+                                  BasicTextField(
+                                      value = url,
+                                      onValueChange = {
+                                          url = it
+                                          analyzed = false
+                                      },
+                                      modifier = Modifier.fillMaxWidth(),
+                                      textStyle = androidx.compose.ui.text.TextStyle(
+                                          color = White,
+                                          fontSize = 15.sp
+                                      ),
+                                      decorationBox = { innerTextField ->
+                                          Box {
+                                              if (url.isEmpty()) {
+                                                  Text(
+                                                      "ضع رابط الفيديو هنا...",
+                                                      color = Gray
+                                                  )
+                                              }
+                                              innerTextField()
+                                          }
+                                      }
+                                  )
+
+                                  Spacer(Modifier.height(18.dp))
+
+                                  Row(
+                                      horizontalArrangement =
+                                          Arrangement.spacedBy(10.dp)
+                                  ) {
+                                      Button(
+                                          onClick = {
+                                              url = clipboard.getText()
+                                                  ?.text ?: ""
+                                          },
+                                          colors = ButtonDefaults.buttonColors(
+                                              containerColor = Purple
+                                          )
+                                      ) {
+                                          Text("لصق الرابط")
+                                      }
+
+                                      OutlinedButton(
+                                          onClick = {
+                                              analyzed = url.startsWith("https://")
+                                          }
+                                      ) {
+                                          Text("تحليل الرابط")
+                                      }
+                                  }
+                              }
+                          }
+
+                          Spacer(Modifier.height(30.dp))
+
+                          if (analyzed) {
+
+                              Text(
+                                  "اختر نوع الملف",
+                                  color = White,
+                                  fontSize = 20.sp,
+                                  fontWeight = FontWeight.Bold
+                              )
+
+                              Spacer(Modifier.height(15.dp))
+
+                              Row(
+                                  horizontalArrangement =
+                                      Arrangement.spacedBy(12.dp)
+                              ) {
+                                  TypeCard(
+                                      title = "فيديو",
+                                      subtitle = "صورة وصوت",
+                                      selected = selectedType == "فيديو"
+                                  ) {
+                                      selectedType = "فيديو"
+                                      selectedQuality = "1080p"
+                                  }
+
+                                  TypeCard(
+                                      title = "صوت",
+                                      subtitle = "صوت فقط",
+                                      selected = selectedType == "صوت"
+                                  ) {
+                                      selectedType = "صوت"
+                                      selectedQuality = "عالية"
+                                  }
+                              }
+
+                              Spacer(Modifier.height(25.dp))
+
+                              Text(
+                                  "جودة الملف",
+                                  color = White,
+                                  fontSize = 20.sp,
+                                  fontWeight = FontWeight.Bold
+                              )
+
+                              Spacer(Modifier.height(12.dp))
+
+                              val qualities = if (selectedType == "فيديو")
+                                  listOf("1080p", "720p", "480p", "360p")
+                              else
+                                  listOf("عالية", "متوسطة", "اقتصادية")
+
+                              qualities.forEach { quality ->
+                                  Row(
+                                      modifier = Modifier
+                                          .fillMaxWidth()
+                                          .padding(vertical = 5.dp)
+                                          .background(
+                                              SurfaceDark,
+                                              RoundedCornerShape(12.dp)
+                                          )
+                                          .clickable {
+                                              selectedQuality = quality
+                                          }
+                                          .padding(16.dp),
+                                      horizontalArrangement =
+                                          Arrangement.SpaceBetween
+                                  ) {
+                                      Text(quality, color = White)
+
+                                      RadioButton(
+                                          selected = selectedQuality == quality,
+                                          onClick = {
+                                              selectedQuality = quality
+                                          },
+                                          colors = RadioButtonDefaults.colors(
+                                              selectedColor = Purple
+                                          )
+                                      )
+                                  }
+                              }
+
+                              Spacer(Modifier.height(20.dp))
+
+                              Button(
+                                  onClick = {
+                                      // هنا نربط محرك التنزيل لاحقاً
+                                  },
+                                  modifier = Modifier.fillMaxWidth(),
+                                  colors = ButtonDefaults.buttonColors(
+                                      containerColor = Purple
+                                  ),
+                                  shape = RoundedCornerShape(14.dp)
+                              ) {
+                                  Text(
+                                      "بدء المعالجة",
+                                      fontSize = 17.sp
+                                  )
+                              }
+                          }
+
+                          Spacer(Modifier.height(35.dp))
+
+                          Text(
+                              "مميزات التطبيق",
+                              color = White,
+                              fontSize = 20.sp,
+                              fontWeight = FontWeight.Bold
+                          )
+
+                          Spacer(Modifier.height(15.dp))
+
+                          FeatureItem("⚡", "واجهة سريعة وسهلة")
+                          FeatureItem("🎵", "اختيار الصوت أو الفيديو")
+                          FeatureItem("✨", "أدوات ذكاء اصطناعي")
+                          FeatureItem("📁", "إدارة الملفات")
+
+                          Spacer(Modifier.height(30.dp))
+
+                          Text(
+                              "AI VIDEO TOOL © 2026",
+                              color = Gray,
+                              modifier = Modifier.align(Alignment.CenterHorizontally)
+                          )
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun RowScope.TypeCard(
+              title: String,
+              subtitle: String,
+              selected: Boolean,
+              onClick: () -> Unit
+          ) {
+              Card(
+                  modifier = Modifier
+                      .weight(1f)
+                      .clickable { onClick() },
+                  colors = CardDefaults.cardColors(
+                      containerColor = if (selected)
+                          Color(0xFF292044)
+                      else SurfaceDark
+                  ),
+                  border = if (selected)
+                      BorderStroke(1.dp, Purple)
+                  else null,
+                  shape = RoundedCornerShape(16.dp)
+              ) {
+                  Column(
+                      modifier = Modifier.padding(18.dp)
+                  ) {
+                      Text(title, color = White, fontSize = 20.sp)
+                      Text(subtitle, color = Gray, fontSize = 12.sp)
+                  }
+              }
+          }
+
+          @Composable
+          fun FeatureItem(icon: String, title: String) {
+              Row(
+                  modifier = Modifier
+                      .fillMaxWidth()
+                      .padding(vertical = 8.dp)
+                      .background(
+                          SurfaceDark,
+                          RoundedCornerShape(12.dp)
+                      )
+                      .padding(16.dp),
+                  verticalAlignment = Alignment.CenterVertically
+              ) {
+                  Text(icon, fontSize = 22.sp)
+                  Spacer(Modifier.width(12.dp))
+                  Text(title, color = White, fontSize = 15.sp)
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon
+
+      - name: Publish APK to Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: APK v${{ github.run_number }}
+          files: app/build/outputs/apk/debug/app-debug.apk
